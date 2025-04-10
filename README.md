@@ -4,7 +4,17 @@ A simple dashboard to monitor network performance.
 
 ## Features
 
-Outputs traceroute, ping, and speed test data.
+- Real-time network latency monitoring
+- Speed testing (download and upload)
+- Traceroute visualization
+- Multi-host latency heatmap
+- Dark mode interface
+
+## Installation
+
+```bash
+pip install -r requirements.txt
+```
 
 ## Usage
 
@@ -12,11 +22,18 @@ Outputs traceroute, ping, and speed test data.
 python src/main.py
 ```
 
+Then open http://localhost:8050 in your browser.
+
 ## Screenshots
 
-![Screenshot 1](screenshots/screenshot_1.png)
-![Screenshot 2](screenshots/screenshot_2.png)
-![Screenshot 3](screenshots/screenshot_3.png)
+### Dashboard Overview
+<img src="screenshots/screenshot_1.png" width="800" alt="Dashboard Overview">
+
+### Network Metrics
+<img src="screenshots/screenshot_2.png" width="800" alt="Network Metrics">
+
+### Latency Heatmap
+<img src="screenshots/screenshot_3.png" width="800" alt="Latency Heatmap">
 
 
 
