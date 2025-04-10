@@ -43,10 +43,11 @@ class SpeedTest:
         
         baseline_rtt = self._measure_rtt(56)
         if baseline_rtt == 0:
+            end_time = time.time()
             return {
                 'bandwidth': 0.0,
                 'ping': 0.0,
-                'duration': round(time.time() - start_time, 2)
+                'duration': round(end_time - start_time, 2)
             }
         
         rtts = []
@@ -56,11 +57,13 @@ class SpeedTest:
                 rtts.append(rtt)
             time.sleep(0.2)
 
+        end_time = time.time()
+        
         if not rtts:
             return {
                 'bandwidth': 0.0,
                 'ping': round(baseline_rtt, 2),
-                'duration': round(time.time() - start_time, 2)
+                'duration': round(end_time - start_time, 2)
             }
 
         median_rtt = statistics.median(rtts)
@@ -68,12 +71,12 @@ class SpeedTest:
         if rtt_diff <= 0:
             rtt_diff = median_rtt
 
-        bandwidth = (self.packet_size * 8) / (rtt_diff / 1000)  # Convert to Mbps
+        bandwidth = (self.packet_size * 8) / (rtt_diff / 1000)
         
         return {
-            'bandwidth': round(bandwidth / 1_000_000, 2),  # Convert to Mbps
+            'bandwidth': round(bandwidth / 1_000_000, 2),
             'ping': round(baseline_rtt, 2),
-            'duration': round(time.time() - start_time, 2)
+            'duration': round(end_time - start_time, 2)
         }
 
 if __name__ == "__main__":
