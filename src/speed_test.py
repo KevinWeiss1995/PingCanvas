@@ -1,82 +1,88 @@
-import requests
+import socket
 import time
+import statistics
 from typing import Dict
+import subprocess
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from statistics import mean
 
 class SpeedTest:
-    def __init__(self, download_url: str = "https://speed.cloudflare.com/__down"):
+    def __init__(self, host: str = "1.1.1.1"):
         """
-        Initialize speed test.
+        Initialize speed test using ICMP packets.
         
-        :param download_url: URL to use for download test
+        :param host: Target host (default: Cloudflare DNS)
         """
-        self.download_url = download_url
-        self.session = requests.Session()
+        self.host = host
+        self.packet_size = 1400 
 
-    def _download_chunk(self) -> float:
-        """Download a chunk and return speed in Mbps"""
+    def _measure_rtt(self, size: int = 56) -> float:
+        """Measure RTT for a specific packet size"""
         try:
-            start = time.time()
-            response = self.session.get(self.download_url, stream=True)
-            size = 0
+            result = subprocess.run(
+                ['ping', '-c', '1', '-s', str(size), self.host],
+                capture_output=True,
+                text=True
+            )
             
-            for chunk in response.iter_content(chunk_size=8192):
-                if chunk:
-                    size += len(chunk)
-            
-            duration = time.time() - start
-            return (size * 8) / (1_000_000 * duration)  # Convert to Mbps
+            if result.returncode == 0:
+                for line in result.stdout.splitlines():
+                    if 'time=' in line:
+                        return float(line.split('time=')[1].split()[0])
+            return 0.0
         except Exception:
             return 0.0
 
-    def run_test(self, threads: int = 4, duration: int = 5) -> Dict[str, float]:
+    def run_test(self, samples: int = 5) -> Dict[str, float]:
         """
         Run speed test and return results.
         
-        :param threads: Number of concurrent downloads
-        :param duration: Test duration in seconds
-        :return: Dictionary containing download_speed (Mbps) and ping (ms)
+        :param samples: Number of measurements to take
+        :return: Dictionary containing bandwidth estimate and ping
         """
         start_time = time.time()
         
-        # Test latency
-        ping_start = time.time()
-        self.session.get(self.download_url, stream=True).close()
-        ping = (time.time() - ping_start) * 1000
-        
-        # Run fixed number of downloads
-        speeds = []
-        with ThreadPoolExecutor(max_workers=threads) as executor:
-            futures = [executor.submit(self._download_chunk) for _ in range(threads)]
-            for future in as_completed(futures):
-                if time.time() - start_time > duration:
-                    break
-                try:
-                    speeds.append(future.result())
-                except Exception:
-                    continue
-
-        if not speeds:
+        baseline_rtt = self._measure_rtt(56)
+        if baseline_rtt == 0:
             return {
-                'download_speed': 0.0,
-                'ping': round(ping, 2),
+                'bandwidth': 0.0,
+                'ping': 0.0,
+                'duration': round(time.time() - start_time, 2)
+            }
+        
+        rtts = []
+        for _ in range(samples):
+            rtt = self._measure_rtt(self.packet_size)
+            if rtt > 0:
+                rtts.append(rtt)
+            time.sleep(0.2)
+
+        if not rtts:
+            return {
+                'bandwidth': 0.0,
+                'ping': round(baseline_rtt, 2),
                 'duration': round(time.time() - start_time, 2)
             }
 
+        median_rtt = statistics.median(rtts)
+        rtt_diff = median_rtt - baseline_rtt
+        if rtt_diff <= 0:
+            rtt_diff = median_rtt
+
+        bandwidth = (self.packet_size * 8) / (rtt_diff / 1000)  # Convert to Mbps
+        
         return {
-            'download_speed': round(mean(speeds), 2),
-            'ping': round(ping, 2),
+            'bandwidth': round(bandwidth / 1_000_000, 2),  # Convert to Mbps
+            'ping': round(baseline_rtt, 2),
             'duration': round(time.time() - start_time, 2)
         }
 
 if __name__ == "__main__":
     try:
         st = SpeedTest()
-        print("Running speed test (5 seconds)...")
+        print("Estimating bandwidth...")
         
-        results = st.run_test(duration=5)
-        print(f"\nDownload: {results['download_speed']:.1f} Mbps")
+        results = st.run_test()
+        print(f"\nEstimated bandwidth: {results['bandwidth']:.1f} Mbps")
         print(f"Ping: {results['ping']:.1f} ms")
         print(f"Test duration: {results['duration']:.1f} seconds")
     except KeyboardInterrupt:
