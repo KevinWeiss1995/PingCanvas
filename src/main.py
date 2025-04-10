@@ -10,46 +10,60 @@ from ping import ping
 from traceroute import traceroute
 from speed_test import SpeedTest
 from interface_stats import InterfaceStats
+from heatmap import NetworkHeatmap
 
 app = dash.Dash(__name__)
 speed_test = SpeedTest()
 interface_stats = InterfaceStats()
+heatmap = NetworkHeatmap(["8.8.8.8", "1.1.1.1"])  # Google and Cloudflare DNS
 
 network_data = {
     'timestamps': [],
     'ping_times': [],
     'download_speeds': [],
     'upload_speeds': [],
-    'traceroute_hops': []
+    'traceroute_hops': [],
+    'heatmap_data': None
 }
 
 def update_network_data():
     """Background task to update network metrics"""
     while True:
-        timestamp = datetime.now()
-      
-        ping_time = ping("8.8.8.8")
-        interface_stats_data = interface_stats.get_rates()
-   
-        download_speed = interface_stats_data.get('bytes_recv', 0) / 1_000_000
-        upload_speed = interface_stats_data.get('bytes_sent', 0) / 1_000_000
-        
-        if len(network_data['timestamps']) % 60 == 0:  # Once per minute
-            hops = traceroute("8.8.8.8")
-            if hops:
-                network_data['traceroute_hops'] = hops
-        
-        network_data['timestamps'].append(timestamp)
-        network_data['ping_times'].append(ping_time)
-        network_data['download_speeds'].append(download_speed)
-        network_data['upload_speeds'].append(upload_speed)
-        
-        if len(network_data['timestamps']) > 3600:
-            for key in network_data:
-                if key != 'traceroute_hops':
-                    network_data[key] = network_data[key][-3600:]
-        
-        time.sleep(1)
+        try:
+            timestamp = datetime.now()
+          
+            
+            ping_time = ping("8.8.8.8")
+            interface_stats_data = interface_stats.get_rates()
+            download_speed = interface_stats_data.get('bytes_recv', 0)  # Already in Mbps
+            upload_speed = interface_stats_data.get('bytes_sent', 0)    # Already in Mbps
+       
+            if len(network_data['timestamps']) % 10 == 0:
+                heatmap.measure()
+                network_data['heatmap_data'] = {
+                    'z': heatmap.data.tolist(), 
+                    'hosts': heatmap.hosts
+                }
+            
+            if len(network_data['timestamps']) % 60 == 0:  
+                hops = traceroute("8.8.8.8")
+                if hops:
+                    network_data['traceroute_hops'] = hops
+            
+            network_data['timestamps'].append(timestamp)
+            network_data['ping_times'].append(ping_time)
+            network_data['download_speeds'].append(download_speed)
+            network_data['upload_speeds'].append(upload_speed)
+          
+            if len(network_data['timestamps']) > 3600:
+                for key in network_data:
+                    if key not in ['traceroute_hops', 'heatmap_data']:
+                        network_data[key] = network_data[key][-3600:]
+            
+            time.sleep(1)
+        except Exception as e:
+            print(f"Error in update thread: {e}")
+            time.sleep(1)
 
 threading.Thread(target=update_network_data, daemon=True).start()
 
@@ -75,6 +89,11 @@ app.layout = html.Div([
         html.Div([
             html.H3('Network Speed'),
             dcc.Graph(id='speed-graph')
+        ], className='graph-container'),
+        
+        html.Div([
+            html.H3('Network Latency Heatmap'),
+            dcc.Graph(id='heatmap-graph')
         ], className='graph-container')
     ]),
     
@@ -89,7 +108,8 @@ app.layout = html.Div([
     [Output('status-display', 'children'),
      Output('traceroute-display', 'children'),
      Output('ping-graph', 'figure'),
-     Output('speed-graph', 'figure')],
+     Output('speed-graph', 'figure'),
+     Output('heatmap-graph', 'figure')],
     Input('interval-component', 'n_intervals')
 )
 def update_graphs(n):
@@ -117,22 +137,31 @@ def update_graphs(n):
                 'yaxis': {'title': 'Speed (MB/s)'}
             }
         }
-        return current_status, traceroute_status, ping_figure, speed_figure
+        heatmap_figure = {
+            'data': [],
+            'layout': {
+                'title': 'Network Latency Heatmap',
+                'xaxis': {'title': 'Time'},
+                'yaxis': {'title': 'Hosts'},
+                'paper_bgcolor': 'white',
+                'plot_bgcolor': 'white'
+            }
+        }
+        return current_status, traceroute_status, ping_figure, speed_figure, heatmap_figure
 
     try:
-        # Get current interface stats for display
         current_stats = interface_stats.get_rates()
-        download_speed = current_stats.get('bytes_recv', 0) / 1_000_000  # MB/s
-        upload_speed = current_stats.get('bytes_sent', 0) / 1_000_000    # MB/s
+        download_speed = current_stats.get('bytes_recv', 0)  # Already in Mbps
+        upload_speed = current_stats.get('bytes_sent', 0)    # Already in Mbps
 
         current_status = html.Div([
             html.P(f"Current Ping: {network_data['ping_times'][-1]:.1f} ms"),
             html.P([
                 "Network Speed:",
                 html.Br(),
-                f"Download: {download_speed:.1f} MB/s",
+                f"Download: {download_speed:.1f} Mbps",  # Changed unit to Mbps
                 html.Br(),
-                f"Upload: {upload_speed:.1f} MB/s"
+                f"Upload: {upload_speed:.1f} Mbps"       # Changed unit to Mbps
             ])
         ])
         
@@ -201,7 +230,7 @@ def update_graphs(n):
                     'showgrid': True
                 },
                 'yaxis': {
-                    'title': 'Speed (Megabytes/second)',
+                    'title': 'Speed (Megabits per second)',  # Updated unit
                     'gridcolor': '#e5e5e5',
                     'showgrid': True,
                     'rangemode': 'tozero'
@@ -213,7 +242,46 @@ def update_graphs(n):
             }
         }
         
-        return current_status, traceroute_status, ping_figure, speed_figure
+        # Heatmap figure
+        if network_data.get('heatmap_data'):
+            heatmap_figure = {
+                'data': [go.Heatmap(
+                    z=network_data['heatmap_data']['z'],
+                    x=network_data['timestamps'][-len(network_data['heatmap_data']['z'][0]):],
+                    y=network_data['heatmap_data']['hosts'],
+                    colorscale='RdYlGn_r',
+                    colorbar={'title': 'Latency (ms)'}
+                )],
+                'layout': {
+                    'title': 'Network Latency Heatmap',
+                    'xaxis': {
+                        'title': 'Time (HH:MM:SS)',
+                        'gridcolor': '#e5e5e5',
+                        'showgrid': True
+                    },
+                    'yaxis': {
+                        'title': 'Hosts',
+                        'gridcolor': '#e5e5e5',
+                        'showgrid': True
+                    },
+                    'paper_bgcolor': 'white',
+                    'plot_bgcolor': 'white',
+                    'margin': {'t': 40, 'b': 40, 'l': 40, 'r': 40}
+                }
+            }
+        else:
+            heatmap_figure = {
+                'data': [],
+                'layout': {
+                    'title': 'Network Latency Heatmap',
+                    'xaxis': {'title': 'Time'},
+                    'yaxis': {'title': 'Hosts'},
+                    'paper_bgcolor': 'white',
+                    'plot_bgcolor': 'white'
+                }
+            }
+        
+        return current_status, traceroute_status, ping_figure, speed_figure, heatmap_figure
     except Exception as e:
         print(f"Error updating graphs: {e}")
         return update_graphs(n)  
