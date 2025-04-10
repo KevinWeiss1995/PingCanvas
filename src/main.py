@@ -68,7 +68,12 @@ def update_network_data():
 threading.Thread(target=update_network_data, daemon=True).start()
 
 app.layout = html.Div([
-    html.H1('Network Monitor Dashboard'),
+    html.H1('Network Monitor Dashboard', 
+            style={
+                'textAlign': 'center',
+                'color': 'white',
+                'padding': '20px'
+            }),
     
     html.Div([
         html.Div([
@@ -102,7 +107,35 @@ app.layout = html.Div([
         interval=1000,
         n_intervals=0
     )
-])
+], style={
+    'backgroundColor': 'black',
+    'minHeight': '100vh',  # Full viewport height
+    'margin': 0,
+    'padding': '20px'
+})
+
+# Update all graph layouts with dark theme
+def create_graph_layout(title, y_title):
+    return {
+        'title': title,
+        'xaxis': {
+            'title': 'Time (HH:MM:SS)',
+            'gridcolor': '#333',
+            'showgrid': True,
+            'color': 'white'
+        },
+        'yaxis': {
+            'title': y_title,
+            'gridcolor': '#333',
+            'showgrid': True,
+            'color': 'white'
+        },
+        'paper_bgcolor': 'black',
+        'plot_bgcolor': 'black',
+        'margin': {'t': 40, 'b': 40, 'l': 40, 'r': 40},
+        'font': {'color': 'white'},
+        'legend': {'font': {'color': 'white'}}
+    }
 
 @app.callback(
     [Output('status-display', 'children'),
@@ -123,29 +156,24 @@ def update_graphs(n):
         
         ping_figure = {
             'data': [],
-            'layout': {
-                'title': 'Network Latency Over Time',
-                'xaxis': {'title': 'Time'},
-                'yaxis': {'title': 'Ping (ms)'}
-            }
+            'layout': create_graph_layout(
+                'Network Latency Over Time',
+                'Ping (ms)'
+            )
         }
         speed_figure = {
             'data': [],
-            'layout': {
-                'title': 'Network Speed Over Time',
-                'xaxis': {'title': 'Time'},
-                'yaxis': {'title': 'Speed (MB/s)'}
-            }
+            'layout': create_graph_layout(
+                'Network Speed Over Time',
+                'Speed (MB/s)'
+            )
         }
         heatmap_figure = {
             'data': [],
-            'layout': {
-                'title': 'Network Latency Heatmap',
-                'xaxis': {'title': 'Time'},
-                'yaxis': {'title': 'Hosts'},
-                'paper_bgcolor': 'white',
-                'plot_bgcolor': 'white'
-            }
+            'layout': create_graph_layout(
+                'Network Latency Heatmap',
+                'Hosts'
+            )
         }
         return current_status, traceroute_status, ping_figure, speed_figure, heatmap_figure
 
@@ -186,23 +214,10 @@ def update_graphs(n):
                 mode='lines+markers',
                 line={'color': '#1f77b4'}
             )],
-            'layout': {
-                'title': 'Network Latency (Ping Response Time)',
-                'xaxis': {
-                    'title': 'Time (HH:MM:SS)',
-                    'gridcolor': '#e5e5e5',
-                    'showgrid': True
-                },
-                'yaxis': {
-                    'title': 'Latency (ms)',
-                    'gridcolor': '#e5e5e5',
-                    'showgrid': True,
-                    'rangemode': 'tozero'
-                },
-                'paper_bgcolor': 'white',
-                'plot_bgcolor': 'white',
-                'margin': {'t': 40, 'b': 40, 'l': 40, 'r': 40}
-            }
+            'layout': create_graph_layout(
+                'Network Latency (Ping Response Time)',
+                'Latency (ms)'
+            )
         }
         
         speed_figure = {
@@ -222,24 +237,10 @@ def update_graphs(n):
                     line={'color': '#ff7f0e'}
                 )
             ],
-            'layout': {
-                'title': 'Network Speed',
-                'xaxis': {
-                    'title': 'Time (HH:MM:SS)',
-                    'gridcolor': '#e5e5e5',
-                    'showgrid': True
-                },
-                'yaxis': {
-                    'title': 'Speed (Megabits per second)',  # Updated unit
-                    'gridcolor': '#e5e5e5',
-                    'showgrid': True,
-                    'rangemode': 'tozero'
-                },
-                'paper_bgcolor': 'white',
-                'plot_bgcolor': 'white',
-                'margin': {'t': 40, 'b': 40, 'l': 40, 'r': 40},
-                'legend': {'orientation': 'h', 'y': -0.2}
-            }
+            'layout': create_graph_layout(
+                'Network Speed',
+                'Speed (Megabits per second)'
+            )
         }
         
         # Heatmap figure
@@ -252,33 +253,18 @@ def update_graphs(n):
                     colorscale='RdYlGn_r',
                     colorbar={'title': 'Latency (ms)'}
                 )],
-                'layout': {
-                    'title': 'Network Latency Heatmap',
-                    'xaxis': {
-                        'title': 'Time (HH:MM:SS)',
-                        'gridcolor': '#e5e5e5',
-                        'showgrid': True
-                    },
-                    'yaxis': {
-                        'title': 'Hosts',
-                        'gridcolor': '#e5e5e5',
-                        'showgrid': True
-                    },
-                    'paper_bgcolor': 'white',
-                    'plot_bgcolor': 'white',
-                    'margin': {'t': 40, 'b': 40, 'l': 40, 'r': 40}
-                }
+                'layout': create_graph_layout(
+                    'Network Latency Heatmap',
+                    'Hosts'
+                )
             }
         else:
             heatmap_figure = {
                 'data': [],
-                'layout': {
-                    'title': 'Network Latency Heatmap',
-                    'xaxis': {'title': 'Time'},
-                    'yaxis': {'title': 'Hosts'},
-                    'paper_bgcolor': 'white',
-                    'plot_bgcolor': 'white'
-                }
+                'layout': create_graph_layout(
+                    'Network Latency Heatmap',
+                    'Hosts'
+                )
             }
         
         return current_status, traceroute_status, ping_figure, speed_figure, heatmap_figure
