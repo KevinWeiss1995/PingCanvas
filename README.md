@@ -27,13 +27,13 @@ Then open http://localhost:8050 in your browser.
 ## Screenshots
 
 ### Dashboard Overview
-<img src="screenshots/screenshot_1.png" width="800" alt="Dashboard Overview">
+![Dashboard Overview](https://raw.githubusercontent.com/KevinWeiss1995/PingCanvas/main/screenshots/screenshot_1.png)
 
 ### Network Metrics
-<img src="screenshots/screenshot_2.png" width="800" alt="Network Metrics">
+![Network Metrics](https://raw.githubusercontent.com/KevinWeiss1995/PingCanvas/main/screenshots/screenshot_2.png)
 
 ### Latency Heatmap
-<img src="screenshots/screenshot_3.png" width="800" alt="Latency Heatmap">
+![Latency Heatmap](https://raw.githubusercontent.com/KevinWeiss1995/PingCanvas/main/screenshots/screenshot_3.png)
 
 
 
