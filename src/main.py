@@ -153,29 +153,34 @@ def format_traceroute_hop(hop):
     """Format a single traceroute hop for display"""
     hop_num, ip, rtt = hop
     
-    # Clean up IP display
     if ip == '*':
-        ip_display = '*'
-        latency_display = '*'
+        return {
+            'hop_num': hop_num,
+            'ip': '*',
+            'latency': '*'
+        }
+
+    # Parse IP and latency
+    if '(' in ip:
+        # Get first IP/hostname before parentheses
+        main_ip = ip.split('(')[0].strip()
     else:
-        # Take first valid IP address
-        if '(' in ip:
-            # Extract first hostname/IP pair
-            parts = ip.split('(')
-            ip_display = parts[0].strip()
-        else:
-            ip_display = ip
-        
-        # Take first valid RTT value
-        if rtt and len(rtt) >= 2:
-            latency_display = f"{rtt[0]} {rtt[1]}"
-        else:
-            latency_display = '*'
-    
+        main_ip = ip.strip()
+
+    # Get best (lowest) latency
+    if rtt and len(rtt) >= 2:
+        try:
+            latency = float(rtt[0])
+            latency_str = f"{latency:.2f} {rtt[1]}"
+        except ValueError:
+            latency_str = '*'
+    else:
+        latency_str = '*'
+
     return {
         'hop_num': hop_num,
-        'ip': ip_display,
-        'latency': latency_display
+        'ip': main_ip,
+        'latency': latency_str
     }
 
 @app.callback(
