@@ -18,7 +18,7 @@ from heatmap import NetworkHeatmap
 app = dash.Dash(__name__)
 speed_test = NetworkSpeedTest()
 interface_stats = InterfaceStats()
-heatmap = NetworkHeatmap(["8.8.8.8", "1.1.1.1"])  # Google and Cloudflare DNS
+heatmap = NetworkHeatmap(["8.8.8.8", "1.1.1.1", "9.9.9.9"])  # Google Cloudflare and Quad9 DNS
 
 network_data = {
     'timestamps': [],
