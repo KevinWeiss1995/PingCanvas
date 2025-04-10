@@ -1,3 +1,6 @@
+import warnings
+warnings.filterwarnings("ignore", category=UserWarning)
+
 import dash
 from dash import html, dcc
 from dash.dependencies import Input, Output
@@ -8,12 +11,12 @@ import threading
 
 from ping import ping
 from traceroute import traceroute
-from speed_test import SpeedTest
+from speed_measure import NetworkSpeedTest
 from interface_stats import InterfaceStats
 from heatmap import NetworkHeatmap
 
 app = dash.Dash(__name__)
-speed_test = SpeedTest()
+speed_test = NetworkSpeedTest()
 interface_stats = InterfaceStats()
 heatmap = NetworkHeatmap(["8.8.8.8", "1.1.1.1"])  # Google and Cloudflare DNS
 
@@ -22,42 +25,52 @@ network_data = {
     'ping_times': [],
     'download_speeds': [],
     'upload_speeds': [],
+    'measured_download': 0,  # Last measured download speed
+    'measured_upload': 0,    # Last measured upload speed
+    'last_speed_test': 0,    # Timestamp of last speed test
     'traceroute_hops': [],
     'heatmap_data': None
 }
 
 def update_network_data():
     """Background task to update network metrics"""
+
+    network_data['traceroute_hops'] = traceroute("8.8.8.8") or []
+    
     while True:
         try:
             timestamp = datetime.now()
-          
             
             ping_time = ping("8.8.8.8")
             interface_stats_data = interface_stats.get_rates()
-            download_speed = interface_stats_data.get('bytes_recv', 0)  # Already in Mbps
-            upload_speed = interface_stats_data.get('bytes_sent', 0)    # Already in Mbps
-       
+            
+            if not network_data['last_speed_test'] or \
+               (timestamp - network_data['last_speed_test']).seconds >= 60:
+                speed_results = speed_test.measure()
+                network_data['measured_download'] = speed_results['download']
+                network_data['measured_upload'] = speed_results['upload']
+                network_data['last_speed_test'] = timestamp
+
+            network_data['timestamps'].append(timestamp)
+            network_data['ping_times'].append(ping_time)
+            network_data['download_speeds'].append(network_data['measured_download'])
+            network_data['upload_speeds'].append(network_data['measured_upload'])
+     
             if len(network_data['timestamps']) % 10 == 0:
                 heatmap.measure()
                 network_data['heatmap_data'] = {
-                    'z': heatmap.data.tolist(), 
+                    'z': heatmap.data.tolist(),
                     'hosts': heatmap.hosts
                 }
             
-            if len(network_data['timestamps']) % 60 == 0:  
-                hops = traceroute("8.8.8.8")
-                if hops:
-                    network_data['traceroute_hops'] = hops
+            # Update traceroute every minute and store result even if empty
+            if len(network_data['timestamps']) % 60 == 0:
+                network_data['traceroute_hops'] = traceroute("8.8.8.8") or []
             
-            network_data['timestamps'].append(timestamp)
-            network_data['ping_times'].append(ping_time)
-            network_data['download_speeds'].append(download_speed)
-            network_data['upload_speeds'].append(upload_speed)
-          
             if len(network_data['timestamps']) > 3600:
                 for key in network_data:
-                    if key not in ['traceroute_hops', 'heatmap_data']:
+                    if key not in ['traceroute_hops', 'heatmap_data', 'measured_download', 
+                                 'measured_upload', 'last_speed_test']:
                         network_data[key] = network_data[key][-3600:]
             
             time.sleep(1)
@@ -111,18 +124,17 @@ app.layout = html.Div([
     )
 ], style={
     'backgroundColor': 'black',
-    'minHeight': '100vh',  # Full viewport height
+    'minHeight': '100vh',
     'margin': 0,
     'padding': '20px'
 })
 
-# Update all graph layouts with dark theme
 def create_graph_layout(title, y_title):
     return {
         'title': {
             'text': title,
             'font': {'color': 'white'},
-            'x': 0.5,  # Center the title
+            'x': 0.5, 
             'xanchor': 'center'
         },
         'xaxis': {
@@ -225,19 +237,21 @@ def update_graphs(n):
         return current_status, traceroute_status, ping_figure, speed_figure, heatmap_figure
 
     try:
-        current_stats = interface_stats.get_rates()
-        download_speed = current_stats.get('bytes_recv', 0)  # Already in Mbps
-        upload_speed = current_stats.get('bytes_sent', 0)    # Already in Mbps
-
         current_status = html.Div([
             html.P(f"Current Ping: {network_data['ping_times'][-1]:.1f} ms",
                   style={'color': 'white'}),
             html.P([
-                "Network Speed:",
+                "Network Speed (measured every 5 minutes):",
                 html.Br(),
-                f"Download: {download_speed:.1f} Mbps",
+                f"Download: {network_data['measured_download']:.1f} Mbps",
                 html.Br(),
-                f"Upload: {upload_speed:.1f} Mbps"
+                f"Upload: {network_data['measured_upload']:.1f} Mbps",
+                html.Br(),
+                html.Span(
+                    f"Last measured: {network_data['last_speed_test'].strftime('%H:%M:%S')}" 
+                    if network_data['last_speed_test'] else "Not yet measured",
+                    style={'fontSize': 'smaller', 'color': '#888'}
+                )
             ], style={'color': 'white'})
         ])
         
@@ -309,7 +323,7 @@ def update_graphs(n):
                 )
             ],
             'layout': create_graph_layout(
-                'Network Speed',
+                'Network Speed (Measured Every Minute)',
                 'Speed (Megabits per second)'
             )
         }
