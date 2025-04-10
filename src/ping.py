@@ -11,7 +11,6 @@ def ping(host, count=4, timeout=2, ipv6=False):
     :return: Average round-trip time in milliseconds or None if the ping fails.
     """
     try:
-        # Choose the appropriate ping command based on IPv4 or IPv6
         ping_cmd = "ping6" if ipv6 else "ping"
         
         result = subprocess.run(
@@ -22,7 +21,7 @@ def ping(host, count=4, timeout=2, ipv6=False):
         )
         
         if result.returncode == 0:
-            # Parse the output to find the average round-trip time
+
             for line in result.stdout.splitlines():
                 if "avg" in line:
                     avg_time = line.split('/')[4]
