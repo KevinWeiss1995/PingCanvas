@@ -68,7 +68,7 @@ def update_network_data():
 threading.Thread(target=update_network_data, daemon=True).start()
 
 app.layout = html.Div([
-    html.H1('Network Monitor Dashboard', 
+    html.H1('Ping Canvas', 
             style={
                 'textAlign': 'center',
                 'color': 'white',
@@ -77,12 +77,14 @@ app.layout = html.Div([
     
     html.Div([
         html.Div([
-            html.H3('Current Network Status'),
+            html.H3('Current Network Status', 
+                   style={'color': 'white'}),
             html.Div(id='status-display')
         ], className='status-container'),
         
         html.Div([
-            html.H3('Network Path (Traceroute)'),
+            html.H3('Network Path (Traceroute)', 
+                   style={'color': 'white'}),
             html.Div(id='traceroute-display')
         ], className='traceroute-container'),
         
@@ -117,24 +119,63 @@ app.layout = html.Div([
 # Update all graph layouts with dark theme
 def create_graph_layout(title, y_title):
     return {
-        'title': title,
+        'title': {
+            'text': title,
+            'font': {'color': 'white'},
+            'x': 0.5,  # Center the title
+            'xanchor': 'center'
+        },
         'xaxis': {
             'title': 'Time (HH:MM:SS)',
             'gridcolor': '#333',
             'showgrid': True,
-            'color': 'white'
+            'color': 'white',
+            'title_font': {'color': 'white'}
         },
         'yaxis': {
             'title': y_title,
             'gridcolor': '#333',
             'showgrid': True,
-            'color': 'white'
+            'color': 'white',
+            'title_font': {'color': 'white'}
         },
         'paper_bgcolor': 'black',
         'plot_bgcolor': 'black',
         'margin': {'t': 40, 'b': 40, 'l': 40, 'r': 40},
         'font': {'color': 'white'},
-        'legend': {'font': {'color': 'white'}}
+        'legend': {
+            'font': {'color': 'white'},
+            'bgcolor': 'rgba(0,0,0,0)'  # Transparent background
+        }
+    }
+
+def format_traceroute_hop(hop):
+    """Format a single traceroute hop for display"""
+    hop_num, ip, rtt = hop
+    
+    # Clean up IP display
+    if ip == '*':
+        ip_display = '*'
+        latency_display = '*'
+    else:
+        # Take first valid IP address
+        if '(' in ip:
+            # Extract first hostname/IP pair
+            parts = ip.split('(')
+            ip_display = parts[0].strip()
+        else:
+            ip_display = ip
+        
+        # Take first valid RTT value
+        if rtt and len(rtt) >= 2:
+            latency_display = f"{rtt[0]} {rtt[1]}"
+        else:
+            latency_display = '*'
+    
+    return {
+        'hop_num': hop_num,
+        'ip': ip_display,
+        'latency': latency_display
     }
 
 @app.callback(
@@ -149,10 +190,11 @@ def update_graphs(n):
 
     if not network_data['timestamps']:
         current_status = html.Div([
-            html.P("Collecting data..."),
-            html.P("Please wait a few seconds")
+            html.P("Collecting data...", style={'color': 'white'}),
+            html.P("Please wait a few seconds", style={'color': 'white'})
         ])
-        traceroute_status = html.P("Waiting for first traceroute...")
+        traceroute_status = html.P("Waiting for first traceroute...", 
+                                  style={'color': 'white'})
         
         ping_figure = {
             'data': [],
@@ -183,27 +225,51 @@ def update_graphs(n):
         upload_speed = current_stats.get('bytes_sent', 0)    # Already in Mbps
 
         current_status = html.Div([
-            html.P(f"Current Ping: {network_data['ping_times'][-1]:.1f} ms"),
+            html.P(f"Current Ping: {network_data['ping_times'][-1]:.1f} ms",
+                  style={'color': 'white'}),
             html.P([
                 "Network Speed:",
                 html.Br(),
-                f"Download: {download_speed:.1f} Mbps",  # Changed unit to Mbps
+                f"Download: {download_speed:.1f} Mbps",
                 html.Br(),
-                f"Upload: {upload_speed:.1f} Mbps"       # Changed unit to Mbps
-            ])
+                f"Upload: {upload_speed:.1f} Mbps"
+            ], style={'color': 'white'})
         ])
         
         traceroute_status = html.Div([
             html.Table([
-                html.Tr([html.Th(col) for col in ['Hop', 'IP', 'Latency']]),
+                html.Tr([
+                    html.Th(col, style={'color': 'white', 'padding': '10px', 'textAlign': 'left'}) 
+                    for col in ['Hop', 'IP', 'Latency']
+                ]),
                 *[
                     html.Tr([
-                        html.Td(hop[0]),
-                        html.Td(hop[1]),
-                        html.Td(f"{hop[2][0]} {hop[2][1]}")
-                    ]) for hop in network_data.get('traceroute_hops', [])
+                        html.Td(
+                            formatted_hop['hop_num'], 
+                            style={'color': 'white', 'padding': '5px', 'textAlign': 'left'}
+                        ),
+                        html.Td(
+                            formatted_hop['ip'], 
+                            style={'color': 'white', 'padding': '5px', 'textAlign': 'left'}
+                        ),
+                        html.Td(
+                            formatted_hop['latency'], 
+                            style={'color': 'white', 'padding': '5px', 'textAlign': 'left'}
+                        )
+                    ]) for formatted_hop in [
+                        format_traceroute_hop(hop) 
+                        for hop in network_data.get('traceroute_hops', [])
+                    ]
                 ]
-            ]) if network_data.get('traceroute_hops') else html.P("No traceroute data available")
+            ], style={
+                'width': '100%',
+                'borderCollapse': 'collapse',
+                'backgroundColor': '#222',
+                'borderRadius': '5px'
+            }) if network_data.get('traceroute_hops') else html.P(
+                "No traceroute data available", 
+                style={'color': 'white'}
+            )
         ])
         
         ping_figure = {
